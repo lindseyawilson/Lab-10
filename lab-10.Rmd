@@ -1,7 +1,7 @@
 ---
 title: "Lab 10 - Grading the professor, Pt. 2"
-author: "Insert your name here"
-date: "Insert date here"
+author: "Lindsey Wilson"
+date: "5/3/23"
 output: github_document
 ---
 
@@ -13,15 +13,188 @@ library(tidymodels)
 library(openintro)
 ```
 
+```{r load-data, message = FALSE}
+evals = evals
+```
+
+## Part 1
+
 ### Exercise 1
 
-Remove this text, and add your answer for Exercise 1 here.
-Add code chunks as needed.
-Don't forget to label your code chunk.
-Do not use spaces in code chunk labels.
+Let's do a simple linear regression predicting `score` from `bty_avg`, like we did in the previous lab:
+
+```{r bty-avg-lm}
+m_bty <- linear_reg() %>%
+  set_engine("lm") %>%
+  fit(score ~ bty_avg, data = evals)
+
+tidy(m_bty)
+glance(m_bty)
+```
+
+It looks like R-squared here (0.035) is slightly larger than adjusted R-squared (0.033).
+
+## Part 2
 
 ### Exercise 2
 
-...
+Now let's include gender into the model:
 
-Add exercise headings as needed.
+```{r bty-gender-lm}
+m_bty_gen <- linear_reg() %>%
+  set_engine("lm") %>%
+  fit(score ~ bty_avg * gender, data = evals)
+
+tidy(m_bty_gen)
+glance(m_bty_gen)
+
+ggplot(evals,
+       aes(x = bty_avg, y = score,  color = gender)) + 
+  geom_jitter() +
+  geom_smooth(method = "lm", se = FALSE)
+```
+
+The linear model here is `score` = 3.950 + 0.031(`bty_avg`) -0.184 (`gendermale`) + 0.080 (`bty_avg:gendermale`).
+
+R-squared = 0.071
+
+Adjusted R-squared = 0.065
+
+### Exercise 3
+
+The predicted evaluation for a female professor with an average attractiveness rating of zero is 3.747. Males are on average evaluated 0.18. pts lower than females, and score is predicted to increase by 0.03 points for a one point increase in attractiveness. The effect of attractiveness is also 0.08. pts stronger for males than for females.
+
+### Exercise 4
+
+About 7.1% of the variability in `score` is explained by `m_bty_gen`. However, this may be somewhat inflated due to the presence of multiple predictors, so adjusted r-squared (6.5%) is likely a better metric.
+
+### Exercise 5
+
+The equation of the line for just male professors would be `score` = 3.766 + 0.111(`bty_avg`)
+
+### Exercise 6
+
+For professor who receive the same beauty rating, the model suggests that male professors receive higher evaluations than female professors.
+
+### Exercise 7
+
+The effect of attractiveness on evaluations is pretty substantially stronger for male professors than it is for female professors. This is evidenced by the interaction term, which is much greater than the baseline slope for `bty_avg`; being male causes the effect of attractiveness to more than triple compared to the same effect for females.
+
+### Exercise 8
+
+The adjusted R-squared of `m_bty` is 0.033, and that increases to 0.065 when we add gender into the model in `m_bty_gen`. This means that, when already have information about attractiveness ratings, adding information about gender helps explain about 3% more variance.
+
+### Exercise 9
+
+The slope of gender in `m_bty` is 0.067, but that decreases to 0.031 in `m_bty_gen`. That means that the addition of gender to the model decreases the estimated effect of attractiveness on evaluations.
+
+### Exercise 10
+
+Lets swap out rank for gender in our model:
+
+```{r bty-rank-lm}
+m_bty_rank <- linear_reg() %>%
+  set_engine("lm") %>%
+  fit(score ~ bty_avg * rank, data = evals)
+
+tidy(m_bty_rank)
+glance(m_bty_rank)
+
+ggplot(evals,
+       aes(x = bty_avg, y = score,  color = rank)) + 
+  geom_jitter() +
+  geom_smooth(method = "lm", se = FALSE)
+```
+
+Our new equation is `score` = 4.098 + 0.042(`bty_avg`) - 0.019(`ranktenure track`) - 0.409(`ranktenured`) - 0.02(`bty_avg:ranktenure track`) + 0.066(`bty_avg:ranktenured`)
+
+Interpretations are as follows:
+
+-   The predicted score for a teaching track professor with an attractiveness rating of zero is 4.098
+
+-   On average, a 1 pt increase in attractiveness predicts a 0.042 pt increase in evaluation
+
+-   Tenure track professors on average have 0.019 pt lower evaluations than teaching professors
+
+-   Tenured professors on average have 0.409 pt lower evaluations than teaching professors
+
+-   The slope for attractiveness is 0.026 lower for tenure track than for teaching professors
+
+-   The slope for attractiveness is 0.066 higher for tenured than for teaching professors
+
+## Part 3
+
+### Exercise 11
+
+I would probably predict `cls_did_eval` to be the worst predictor of `score`; it doesn't seem like the raw number of students who completed an evaluation would really have anything to do with score, especially since classes vary in size.
+
+### Exercise 12
+
+Let's check my suspicions by actually running the model:
+
+```{r cls-did-eval-lm}
+m_cls_did_eval <- linear_reg() %>%
+  set_engine("lm") %>%
+  fit(score ~ cls_did_eval, data = evals)
+
+tidy(m_cls_did_eval)
+glance(m_cls_did_eval)
+```
+
+Looks like I was right; the number of students who completed an evaluation only explains 0.39% of the variance in evaluation.
+
+### Exercise 13
+
+If you. already have `cls_perc_eval` and `cls_students` in your model, then you wouldn't want to also include 'cls_did_eval` because you can calculate it from the first two variables. You're essentially not adding anything to the model, so any increase you see in R-squared would be artificial.
+
+### Exercise 14
+
+Here's a model fit with all of the given variables:
+
+```{r all-var-lm}
+m_full <- linear_reg() %>%
+  set_engine("lm") %>%
+  fit(score ~ rank*ethnicity*gender*language*age*cls_perc_eval*cls_students*cls_level*cls_profs*cls_credits*bty_avg, data = evals)
+
+tidy(m_full)
+glance(m_full)$adj.r.squared
+```
+
+### Exercise 15
+
+Now let's try to pick out the most important variables to leave in the model via backward selection. The final model is given below:
+
+```{r backward-selection}
+m_full <- linear_reg() %>%
+  set_engine("lm") %>%
+  fit(score ~ rank*gender*age*cls_perc_eval*cls_level*cls_profs*bty_avg, data = evals)
+
+tidy(m_full)
+glance(m_full)$adj.r.squared
+```
+
+### Exercise 16
+
+From our model, here are a couple of interpretations:
+
+-  `age`: a one year increase in age predicts a 5.19 point decrease evaluation, on average
+-  `cls_level`: professors of upper level receive evaluations that are on average 166 points lower than professors of lower level classes
+
+These coefficients are huge (and don't make sense for an outcome variable that ranges from 0 to 5), but that's probably because there are so many interactions that work to make the actual slopes for each variable into reasonable. The slopes for each variable alone are huge so that by the time all the interactions have been applied there's something left.
+
+### Exercise 17
+
+The ideal professor at UT Austin would be:
+
+-  Young
+-  Female
+-  Attractive
+-  Tenure track (but not tenured)
+-  Teaching a lower level class
+-  The only professor teaching the course in question
+-  In a class where a large percentage of the class fills out the evaluation
+
+### Exercise 18
+
+I wouldn't be comfortable generalizing these results to apply to any university, just because UT Austin is a fairly large school and the slopes for variables that have to do with institutional characteristics (`cls_perc_eval`, `cls_level`, etc.) might not apply to a smaller school like Wake. It's not out of the question that they might, but I wouldn't count on it.
+
